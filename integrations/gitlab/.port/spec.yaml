@@ -29,3 +29,8 @@ configurations:
     type: boolean
     description: If set to true, will use system hook instead of project hooks.
     default: false
+  - name: checkPortYaml
+    required: false
+    type: boolean
+    description: If set to true, will add only repository with port.yml file in root.
+    default: false

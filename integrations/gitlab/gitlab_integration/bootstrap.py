@@ -51,11 +51,17 @@ def setup_application(
     gitlab_host: str,
     app_host: str,
     use_system_hook: bool,
+    check_port_yaml: bool
 ) -> None:
     clients = []
     for token, group_mapping in token_mapping.items():
         gitlab_client = Gitlab(gitlab_host, token)
-        gitlab_service = GitlabService(gitlab_client, app_host, group_mapping)
+        gitlab_service = GitlabService(
+            gitlab_client, 
+            app_host, 
+            group_mapping,
+            check_port_yaml
+        )
         clients.append(gitlab_service)
         if use_system_hook:
             gitlab_service.create_system_hook()

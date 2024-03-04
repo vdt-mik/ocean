@@ -39,10 +39,14 @@ class GitlabService:
         gitlab_client: Gitlab,
         app_host: str,
         group_mapping: List[str],
+        check_port_yaml: bool,
     ):
         self.gitlab_client = gitlab_client
         self.app_host = app_host
         self.group_mapping = group_mapping
+        self.check_port_yaml = check_port_yaml
+    
+    project_cache = {}
 
     def _is_exists(self, group: RESTObject) -> bool:
         for hook in group.hooks.list(iterator=True):
@@ -134,7 +138,41 @@ class GitlabService:
             for entity in self._get_entities_from_git(project, path, commit, ref)
         ]
 
+    def has_port_yaml_file(
+        self, 
+        project: Project
+    ) -> bool:
+        try:
+            default_branch = project.default_branch
+            file_content = project.files.get(file_path="port.yml", ref=default_branch)
+            return bool(file_content)
+        except GitlabError as err:
+            if err.response_code != 404:
+                raise err
+            return False
+        except Exception as e:
+            logger.error(
+                f"Failed to check 'port.yml' file for project {project.path_with_namespace}. Error: {e}"
+            )
+            return False
+
+    def get_cached_project(self, path: str) -> Project | None:
+        if path in self.project_cache:
+            return self.project_cache[path]
+    
+        try:
+            project = self.gitlab_client.projects.get(path)
+            self.project_cache[path] = project
+            return project
+        except GitlabError:
+            return None
+
     def should_run_for_path(self, path: str) -> bool:
+        if self.check_port_yaml:  
+            project = self.get_cached_project(path)
+            if not project or not self.has_port_yaml_file(project):
+                logger.info(f"Skipping project at path {path} due to missing port.yml")
+                return False
         return any(does_pattern_apply(mapping, path) for mapping in self.group_mapping)
 
     def should_run_for_group(self, group: Group) -> bool:
